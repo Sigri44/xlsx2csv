@@ -8,18 +8,17 @@
  * The included pclzip PHP zip library  is licensed as noted in related files
  *    
  * @title      xlsx2csv.php 
- * @author     David Collins <collidavid@gmail.com>
  * @license    http://www.gnu.org/copyleft/lesser.html  LGPL License 2.1
  * @version    0.2
- * @link       https://github.com/davidcollins/xlsx2csv
+ * @link       https://github.com/enchance/xlsx2csv
  */
- 
 
  class Xlsx2csv {
 
   public $file;
   public $throttle;
   public $csv_fullpath;
+  public $bin_path = 'uploads/';
   private $uploads_dir; // Unused
 
   // Set $cleanup to 1 for debugging or to leave unpacked files on server
@@ -39,7 +38,7 @@
     $this->csv_fullpath  = str_replace('.xlsx', '.csv', $this->file);
     $this->csv_fullpath = str_replace(' ', '-', $this->csv_fullpath);
     $this->csv_fullpath = $this->csv_fullpath;
-    if(!is_dir('converter')) {mkdir("converter", 0770);}; 
+    if(!is_dir($this->bin_path.'converter')) {mkdir($this->bin_path.'converter', 0770);}; 
   }
 
 
@@ -56,7 +55,7 @@
     if($this->unpack != '1'){
       require_once 'PCLZip/pclzip.lib.php'; 
       $archive = new PclZip($this->file);
-      $list = $archive->extract(PCLZIP_OPT_PATH, 'converter'); 
+      $list = $archive->extract(PCLZIP_OPT_PATH, $this->bin_path.'converter'); 
     }
 
 
@@ -71,8 +70,8 @@
      * suggests SimpleXML is more than 2X faster in record sets ~<500K
      */
     $strings = array();
-    $dir = getcwd();
-    $filename = $dir."\converter\xl\sharedstrings.xml";   
+    $dir = getcwd() . '\\';
+    $filename = $dir.str_replace('/', '', $this->bin_path)."\converter\xl\sharedstrings.xml";   
     $z = new XMLReader;
     $z->open($filename);
 
@@ -103,8 +102,8 @@
     $z->close($filename);
 
 
-    $dir = getcwd();
-    $filename = $dir."\converter\xl\worksheets\sheet1.xml";    
+    $dir = getcwd() . '\\';
+    $filename = $dir.str_replace('/', '', $this->bin_path)."\converter\xl\worksheets\sheet1.xml";    
     $z = new XMLReader;
     $z->open($filename);
 
@@ -180,7 +179,7 @@
 
 
     // At the very end
-    if($this->cleanup != '1') $this->cleanUp('converter/');
+    if($this->cleanup != '1') $this->cleanUp($this->bin_path.'converter/');
 
     return TRUE;
   }
