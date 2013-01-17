@@ -180,7 +180,7 @@
 
 
     // At the very end
-    // if($this->cleanup != '1') $this->cleanUp('converter/');
+    if($this->cleanup != '1') $this->cleanUp('converter/');
 
     return TRUE;
   }
@@ -294,20 +294,17 @@
   /**
    * Delete unpacked files from server
    */ 
-  private function cleanUp($dir) {
+  function cleanUp($dir) {
     $tempdir = opendir($dir);
-    // $fullpath = $dir.$this->file;
-    $fullpath = $dir.$this->file;
-
-    while(false !== ($this->file = readdir($tempdir))) {
-      if($this->file != '.' && $this->file != '..') {
-         if(is_dir($fullpath)) {
+    while(false !== ($file = readdir($tempdir))){
+      if($file != "." && $file != "..") {
+        if(is_dir($dir.$file)) {
           chdir('.');
-          $this->cleanUp($fullpath.'/');
-          rmdir($fullpath);
+          $this->cleanUp($dir.$file.'/');
+          rmdir($dir.$file);
         }
         else {
-          unlink($fullpath);
+          unlink($dir.$file);
         }
       }
     }
