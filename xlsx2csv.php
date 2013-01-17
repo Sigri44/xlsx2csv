@@ -17,23 +17,22 @@
  
 /**
  * Declare the file to be converted as '$file='. 
- * In demo $file declared at index.php
  */
 
-if(!isset($file)){
-$file="";};
+if(!isset($file)) $file = '';
+
 /**
  * Set $throttle to limit number of rows converted;
  * Leave blank to process entire file.
- * In demo $throttle declared in index.php
  */
-if(!isset($throttle)){
-$throttle="";};                                                                 
+if(!isset($throttle)) $throttle = '';
+
 /**
  * Set $cleanup to 1 for debugging or to leave unpacked files on server;
  * Set to 0 or "" to delete unpacked files in production environment
  */
 $cleanup ="0";
+
 /**
  * Set $unpack to 1 if files are already unpacked files on server;
  * Set to 0 or "" to unpack files in production environment
@@ -48,6 +47,7 @@ $unpack = "0";
  $newcsvfile = "csv/$newcsvfile";
  if(!is_dir('bin')) {mkdir("bin", 0770);}; 
  if(!is_dir('csv')) {mkdir("csv", 0777);};
+ 
 /**
  * Use the PCLZip library to unpack the xlsx file to '/bin'
  * PCLZip will create '/bin' or any other directory named in extract()
