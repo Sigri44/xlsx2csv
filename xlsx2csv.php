@@ -14,279 +14,344 @@
  * @link       https://github.com/davidcollins/xlsx2csv
  */
  
- 
-/**
- * Declare the file to be converted as '$file='. 
- */
 
-if(!isset($file)) $file = '';
+ class Xlsx2csv {
 
-/**
- * Set $throttle to limit number of rows converted;
- * Leave blank to process entire file.
- */
-if(!isset($throttle)) $throttle = '';
+  public $file;
+  public $throttle;
+  public $csv_fullpath;
+  private $uploads_dir; // Unused
 
-/**
- * Set $cleanup to 1 for debugging or to leave unpacked files on server;
- * Set to 0 or "" to delete unpacked files in production environment
- */
-$cleanup ="0";
+  // Set $cleanup to 1 for debugging or to leave unpacked files on server
+  // Set to 0 or '' to delete unpacked files in production environment
+  private $cleanup = '0';
 
-/**
- * Set $unpack to 1 if files are already unpacked files on server;
- * Set to 0 or "" to unpack files in production environment
- */
-$unpack = "0";
+  // Set $unpack to 1 if files are already unpacked files on server;
+  // Set to 0 or '' to unpack files in production environment
+  private $unpack = '0';
 
-/**
- * Assign CSV file name similar to xlsx file;
- */ 
- $newcsvfile  = str_replace(".xlsx",".csv",$file);
- $newcsvfile = str_replace(" ","-",$newcsvfile);
- $newcsvfile = "csv/$newcsvfile";
- if(!is_dir('bin')) {mkdir("bin", 0770);}; 
- if(!is_dir('csv')) {mkdir("csv", 0777);};
- 
-/**
- * Use the PCLZip library to unpack the xlsx file to '/bin'
- * PCLZip will create '/bin' or any other directory named in extract()
- * unpack-directory 
- */
-if($unpack!="1"){
-require_once 'PCLZip/pclzip.lib.php'; 
- $archive = new PclZip($file);
- $list = $archive->extract(PCLZIP_OPT_PATH, "bin"); 
- }
- 
 
-function xmlObjToArr($obj) {
-
-/**
- * convert xml objects to array
- * function from http://php.net/manual/pt_BR/book.simplexml.php
- * as posted by xaviered at gmail dot com 17-May-2012 07:00
- * NOTE: return array() ('name'=>$name) commented out; not needed to parse xlsx
- */
-        $namespace = $obj->getDocNamespaces(true);
-        $namespace[NULL] = NULL;
-       
-        $children = array();
-        $attributes = array();
-        $name = strtolower((string)$obj->getName());
-       
-        $text = trim((string)$obj);
-        if( strlen($text) <= 0 ) {
-            $text = NULL;
-        }
-       
-        // get info for all namespaces
-        if(is_object($obj)) {
-            foreach( $namespace as $ns=>$nsUrl ) {
-                // atributes
-                $objAttributes = $obj->attributes($ns, true);
-                foreach( $objAttributes as $attributeName => $attributeValue ) {
-                    $attribName = strtolower(trim((string)$attributeName));
-                    $attribVal = trim((string)$attributeValue);
-                    if (!empty($ns)) {
-                        $attribName = $ns . ':' . $attribName;
-                    }
-                    $attributes[$attribName] = $attribVal;
-                }
-               
-                // children
-                $objChildren = $obj->children($ns, true);
-                foreach( $objChildren as $childName=>$child ) {
-                    $childName = strtolower((string)$childName);
-                    if( !empty($ns) ) {
-                        $childName = $ns.':'.$childName;
-                    }
-                    $children[$childName][] = xmlObjToArr($child);
-                }
-            }
-        }
-         
-        return array(
-           // name not needed for xlsx
-           // 'name'=>$name,
-            'text'=>$text,
-            'attributes'=>$attributes,
-            'children'=>$children
-        );
-    } 
-    
-function my_fputcsv($handle, $fields, $delimiter = ',', $enclosure = '"', $escape = '\\') {
-/**
- * write array to csv file
- * enhanced fputcsv found at http://php.net/manual/en/function.fputcsv.php
- * posted by Hiroto Kagotani 28-Apr-2012 03:13
- * used in lieu of native PHP fputcsv() resolves PHP backslash doublequote bug
- * !!!!!! To resolve issues with escaped characters breaking converted CSV, try this:
- * Kagotani: "It is compatible to fputcsv() except for the additional 5th argument $escape, 
- * which has the same meaning as that of fgetcsv().  
- * If you set it to '"' (double quote), every double quote is escaped by itself."
- */
-  $first = 1;
-  foreach ($fields as $field) {
-    if ($first == 0) fwrite($handle, ",");
-
-    $f = str_replace($enclosure, $enclosure.$enclosure, $field);
-    if ($enclosure != $escape) {
-      $f = str_replace($escape.$enclosure, $escape, $f);
-    }
-    if (strpbrk($f, " \t\n\r".$delimiter.$enclosure.$escape) || strchr($f, "\000")) {
-      fwrite($handle, $enclosure.$f.$enclosure);
-    } else {
-      fwrite($handle, $f);
-    }
-
-    $first = 0;
+  public function __construct($file = '', $throttle = ''){
+    $this->file = $file;
+    $this->throttle = $throttle;
+    $this->assign_csv_filename();
   }
-  fwrite($handle, "\n");
-}
 
-$strings = array();  
-$dir = getcwd();
-$filename = $dir."\bin\xl\sharedstrings.xml";   
 
-/**
- * XMLReader node-by-node processing improves speed and memory in handling large XLSX files
- * Hybrid XMLReader/SimpleXml approach 
- * per http://stackoverflow.com/questions/1835177/how-to-use-xmlreader-in-php
- * Contributed by http://stackoverflow.com/users/74311/josh-davis
- * SimpleXML provides easier access to XML DOM as read node-by-node with XMLReader
- * XMLReader vs SimpleXml processing of nodes not benchmarked in this context, but...
- * published benchmarking at http://posterous.richardcunningham.co.uk/using-a-hybrid-of-xmlreader-and-simplexml
- * suggests SimpleXML is more than 2X faster in record sets ~<500K
- */
+  public function convert($file = '', $throttle = ''){
+    if($file) $this->file = $file;
+    if($throttle) $this->throttle = $throttle;
+    if(!$this->file && !$this->throttle) return FALSE;
 
-$z = new XMLReader;
-$z->open($filename);
+    /**
+    * Use the PCLZip library to unpack the xlsx file to '/bin'
+    * PCLZip will create '/bin' or any other directory named in extract()
+    * unpack-directory 
+    */
+    if($this->unpack != '1'){
+      require_once 'PCLZip/pclzip.lib.php'; 
+      $archive = new PclZip($this->file);
+      $list = $archive->extract(PCLZIP_OPT_PATH, 'bin'); 
+    }
 
-$doc = new DOMDocument;
 
-$csvfile = fopen($newcsvfile,"w");
+    /**
+     * XMLReader node-by-node processing improves speed and memory in handling large XLSX files
+     * Hybrid XMLReader/SimpleXml approach 
+     * per http://stackoverflow.com/questions/1835177/how-to-use-xmlreader-in-php
+     * Contributed by http://stackoverflow.com/users/74311/josh-davis
+     * SimpleXML provides easier access to XML DOM as read node-by-node with XMLReader
+     * XMLReader vs SimpleXml processing of nodes not benchmarked in this context, but...
+     * published benchmarking at http://posterous.richardcunningham.co.uk/using-a-hybrid-of-xmlreader-and-simplexml
+     * suggests SimpleXML is more than 2X faster in record sets ~<500K
+     */
+    $strings = array();
+    $dir = getcwd();
+    $filename = $dir."\bin\xl\sharedstrings.xml";   
+    $z = new XMLReader;
+    $z->open($filename);
 
-while ($z->read() && $z->name !== 'si');
-ob_start();
+    $doc = new DOMDocument;
 
-while ($z->name === 'si')
-  { 
-    // either one should work
-    $node = new SimpleXMLElement($z->readOuterXML());
-   // $node = simplexml_import_dom($doc->importNode($z->expand(), true));
-        
-$result = xmlObjToArr($node);   
-$count = count($result['text']) ;
-   
-if(isset($result['children']['t'][0]['text'])){
-  
-   $val = $result['children']['t'][0]['text'];
-  $strings[]=$val;
- 
-    };                   
-    $z->next('si');
-    $result=NULL;      
+    $csvfile = fopen($this->csv_fullpath, 'w');
+
+    while ($z->read() && $z->name !== 'si');
+    ob_start();
+
+    while ($z->name === 'si'){
+      // either one should work
+      $node = new SimpleXMLElement($z->readOuterXML());
+      // $node = simplexml_import_dom($doc->importNode($z->expand(), true));
+            
+      $result = $this->xmlObjToArr($node);   
+      $count = count($result['text']) ;
+       
+      if(isset($result['children']['t'][0]['text'])){
+        $val = $result['children']['t'][0]['text'];
+        $strings[] = $val;
+      };                   
+      $z->next('si');
+      $result = NULL;
+
     };
-ob_end_flush();
-$z->close($filename);
+    ob_end_flush();
+    $z->close($filename);
 
-$dir = getcwd();
-$filename = $dir."\bin\xl\worksheets\sheet1.xml";    
-$z = new XMLReader;
-$z->open($filename);
 
-$doc = new DOMDocument;
+    $dir = getcwd();
+    $filename = $dir."\bin\xl\worksheets\sheet1.xml";    
+    $z = new XMLReader;
+    $z->open($filename);
 
-$rowCount="0";
-$doc = new DOMDocument; 
-$sheet = array();  
-$nums = array("0","1","2","3","4","5","6","7","8","9");
-while ($z->read() && $z->name !== 'row');
-ob_start();
+    $doc = new DOMDocument;
 
-while ($z->name === 'row')
-  {  
-    $thisrow=array();
+    $rowCount="0";
+    $doc = new DOMDocument; 
+    $sheet = array();  
+    $nums = array('0', '1', '2', '3', '4', '5', '6', '7', '8', '9');
+    while ($z->read() && $z->name !== 'row');
+    ob_start();
 
-$node = new SimpleXMLElement($z->readOuterXML());
-$result = xmlObjToArr($node); 
+    while ($z->name === 'row'){
+      $thisrow=array();
 
-$cells = $result['children']['c'];
-$rowNo = $result['attributes']['r']; 
-$colAlpha = "A";
+      $node = new SimpleXMLElement($z->readOuterXML());
+      $result = $this->xmlObjToArr($node); 
 
-foreach($cells as $cell){
+      $cells = $result['children']['c'];
+      $rowNo = $result['attributes']['r']; 
+      $colAlpha = "A";
 
-if(array_key_exists('v',$cell['children'])){
+      foreach($cells as $cell){
+        if(array_key_exists('v',$cell['children'])){
+          $cellno = str_replace($nums,"",$cell['attributes']['r']);
 
-$cellno = str_replace($nums,"",$cell['attributes']['r']);
+          for($col = $colAlpha; $col != $cellno; $col++){
+            $thisrow[]=" ";
+            $colAlpha++; 
+          }
 
-for($col = $colAlpha; $col != $cellno; $col++) {
- $thisrow[]=" ";
- $colAlpha++; 
-   };
+          if(array_key_exists('t',$cell['attributes'])&&$cell['attributes']['t']='s'){
+            $val = $cell['children']['v'][0]['text'];
+            $string = $strings[$val] ;
+            $thisrow[]=$string;
+          } 
+          else {
+            $thisrow[]=$cell['children']['v'][0]['text'];
+          }
+        }
+        else {$thisrow[]="";
+        }
+        $colAlpha++;
+      };
 
-  if(array_key_exists('t',$cell['attributes'])&&$cell['attributes']['t']='s'){
-    $val = $cell['children']['v'][0]['text'];
-    $string = $strings[$val] ;
-    $thisrow[]=$string;
+    $rowLength=count($thisrow);
+    $rowCount++;
+    $emptyRow=array();
+
+      while($rowCount<$rowNo){
+        for($c=0;$c<$rowLength;$c++){
+          $emptyRow[]=""; 
+        }
+        if(!empty($emptyRow)) $this->my_fputcsv($csvfile, $emptyRow);
+        $rowCount++;
+      };
+
+      $this->my_fputcsv($csvfile, $thisrow);
+
+      if($rowCount<$this->throttle || $this->throttle == '' || $this->throttle == '0'){
+        $z->next('row');
       } 
-    else {
-    $thisrow[]=$cell['children']['v'][0]['text'];
+      else {
+        break;
+      }
+
+      $result = NULL;
+    }
+
+    $z->close($filename);
+    ob_end_flush(); 
+
+
+
+    // At the very end
+    // if($this->cleanup != '1') $this->cleanUp('bin/');
+
+    return TRUE;
+  }
+
+  private function assign_csv_filename(){
+    // Assign CSV filename same as XLSX filename
+    $this->csv_fullpath  = str_replace('.xlsx', '.csv', $this->file);
+    $this->csv_fullpath = str_replace(' ', '-', $this->csv_fullpath);
+    $this->csv_fullpath = $this->csv_fullpath;
+    if(!is_dir('bin')) {mkdir("bin", 0770);}; 
+    if(!is_dir('csv')) {mkdir("csv", 0777);};
+  }
+
+  /**
+   * Declare the file to be converted
+   * @param string $file Full path of the xlsx file
+   * @return  bool
+   */
+  public function set_file($file){
+    $this->file = $file;
+    return TRUE;
+  }
+
+  /**
+   * Set the value of $throttle
+   * @param string $throttle Set $throttle to limit number of rows converted
+   * @return  bool
+   */
+  public function set_throttle($throttle){
+    $this->throttle = $throttle;
+    return TRUE;
+  }
+
+  /**
+   * Convert xml objects to array (http://php.net/manual/pt_BR/book.simplexml.php)
+   * @param  object $obj XML object
+   * @return array
+   */
+  private function xmlObjToArr($obj){
+
+    $namespace = $obj->getDocNamespaces(true);
+    $namespace[NULL] = NULL;
+   
+    $children = array();
+    $attributes = array();
+    $name = strtolower((string)$obj->getName());
+   
+    $text = trim((string)$obj);
+    if( strlen($text) <= 0 ) $text = NULL;
+   
+    // get info for all namespaces
+    if(is_object($obj)) {
+      foreach( $namespace as $ns=>$nsUrl ) {
+        // atributes
+        $objAttributes = $obj->attributes($ns, true);
+        foreach( $objAttributes as $attributeName => $attributeValue ) {
+          $attribName = strtolower(trim((string)$attributeName));
+          $attribVal = trim((string)$attributeValue);
+          if (!empty($ns)) {
+              $attribName = $ns . ':' . $attribName;
+          }
+          $attributes[$attribName] = $attribVal;
+        }
+       
+        // children
+        $objChildren = $obj->children($ns, true);
+        foreach( $objChildren as $childName=>$child ) {
+          $childName = strtolower((string)$childName);
+          if( !empty($ns) ) {
+              $childName = $ns.':'.$childName;
+          }
+          $children[$childName][] = $this->xmlObjToArr($child);
+        }
       }
     }
-    else {$thisrow[]="";};
-    $colAlpha++;
-  };
-
-$rowLength=count($thisrow);
-$rowCount++;
-$emptyRow=array();
-
-while($rowCount<$rowNo){
-  for($c=0;$c<$rowLength;$c++) {
-    $emptyRow[]=""; 
+     
+    return array(
+      // name not needed for xlsx
+      // 'name'=>$name,
+      'text'=>$text,
+      'attributes'=>$attributes,
+      'children'=>$children
+    );
   }
 
-if(!empty($emptyRow)){
-    my_fputcsv($csvfile,$emptyRow);
-    };
-    $rowCount++;
-  };
 
-my_fputcsv($csvfile,$thisrow);      
+  /**
+   * Write array to csv file
+   * enhanced fputcsv found at http://php.net/manual/en/function.fputcsv.php
+   * posted by Hiroto Kagotani 28-Apr-2012 03:13
+   * used in lieu of native PHP fputcsv() resolves PHP backslash doublequote bug
+   * !!!!!! To resolve issues with escaped characters breaking converted CSV, try this:
+   * Kagotani: "It is compatible to fputcsv() except for the additional 5th argument $escape, 
+   * which has the same meaning as that of fgetcsv().  
+   * If you set it to '"' (double quote), every double quote is escaped by itself."
+   */
+  function my_fputcsv($handle, $fields, $delimiter = ',', $enclosure = '"', $escape = '\\'){
+    $first = 1;
+    foreach ($fields as $field) {
+      if ($first == 0) fwrite($handle, ",");
 
-if($rowCount<$throttle||$throttle==""||$throttle=="0")
-  {$z->next('row');
-    } 
-    else 
-      {break;};
+      $f = str_replace($enclosure, $enclosure.$enclosure, $field);
+      if ($enclosure != $escape) $f = str_replace($escape.$enclosure, $escape, $f);
 
-$result=NULL; };
+      if (strpbrk($f, " \t\n\r".$delimiter.$enclosure.$escape) || strchr($f, "\000")){
+        fwrite($handle, $enclosure.$f.$enclosure);
+      }
+      else {
+        fwrite($handle, $f);
+      }
 
-$z->close($filename);
-ob_end_flush(); 
+      $first = 0;
+    }
 
-/**
- * Delete unpacked files from server
- */ 
-function cleanUp($dir) {
+    fwrite($handle, "\n");
+    return TRUE;
+  }
+
+
+  /**
+   * Delete unpacked files from server
+   */ 
+  private function cleanUp($dir) {
     $tempdir = opendir($dir);
-    while(false !== ($file = readdir($tempdir))) {
-        if($file != "." && $file != "..") {
-             if(is_dir($dir.$file)) {
-                chdir('.');
-                cleanUp($dir.$file.'/');
-                rmdir($dir.$file);
-            }
-            else
-                unlink($dir.$file);
+    // $fullpath = $dir.$this->file;
+    $fullpath = $dir.$this->file;
+
+    while(false !== ($this->file = readdir($tempdir))) {
+      if($this->file != '.' && $this->file != '..') {
+         if(is_dir($fullpath)) {
+          chdir('.');
+          $this->cleanUp($fullpath.'/');
+          rmdir($fullpath);
         }
+        else {
+          unlink($fullpath);
+        }
+      }
     }
     closedir($tempdir);
-}
-if($cleanup!="1"){
-  cleanUp("bin/");  
-};
+  }
+
+
+
+  /**
+   * Convert a CSV file into an array
+   * @return array
+   */
+  public function parse_csv(){
+    $row = 1;
+    // $this->csv_fullpath = $this->csv_fullpath;
+    if (($handle = fopen($this->csv_fullpath, 'r')) !== FALSE) {
+      while (($data = fgetcsv($handle, 1000, ",")) !== FALSE) {
+        $row++;
+        $data_entries[] = $data ;
+      }
+      fclose($handle);
+    }
+
+    return $data_entries;
+  }
+
+
+ }
+
+
+ 
+ 
+
+    
+
+
+
+
+
+
+
+
 ?>
