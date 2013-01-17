@@ -39,7 +39,7 @@
     $this->csv_fullpath  = str_replace('.xlsx', '.csv', $this->file);
     $this->csv_fullpath = str_replace(' ', '-', $this->csv_fullpath);
     $this->csv_fullpath = $this->csv_fullpath;
-    if(!is_dir('bin')) {mkdir("bin", 0770);}; 
+    if(!is_dir('converter')) {mkdir("converter", 0770);}; 
   }
 
 
@@ -49,14 +49,14 @@
     if(!$this->file && !$this->throttle) return FALSE;
 
     /**
-    * Use the PCLZip library to unpack the xlsx file to '/bin'
-    * PCLZip will create '/bin' or any other directory named in extract()
+    * Use the PCLZip library to unpack the xlsx file to '/converter'
+    * PCLZip will create '/converter' or any other directory named in extract()
     * unpack-directory 
     */
     if($this->unpack != '1'){
       require_once 'PCLZip/pclzip.lib.php'; 
       $archive = new PclZip($this->file);
-      $list = $archive->extract(PCLZIP_OPT_PATH, 'bin'); 
+      $list = $archive->extract(PCLZIP_OPT_PATH, 'converter'); 
     }
 
 
@@ -72,7 +72,7 @@
      */
     $strings = array();
     $dir = getcwd();
-    $filename = $dir."\bin\xl\sharedstrings.xml";   
+    $filename = $dir."\converter\xl\sharedstrings.xml";   
     $z = new XMLReader;
     $z->open($filename);
 
@@ -104,7 +104,7 @@
 
 
     $dir = getcwd();
-    $filename = $dir."\bin\xl\worksheets\sheet1.xml";    
+    $filename = $dir."\converter\xl\worksheets\sheet1.xml";    
     $z = new XMLReader;
     $z->open($filename);
 
@@ -180,7 +180,7 @@
 
 
     // At the very end
-    // if($this->cleanup != '1') $this->cleanUp('bin/');
+    // if($this->cleanup != '1') $this->cleanUp('converter/');
 
     return TRUE;
   }
