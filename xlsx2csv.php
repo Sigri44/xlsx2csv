@@ -34,7 +34,12 @@
   public function __construct($file = '', $throttle = ''){
     $this->file = $file;
     $this->throttle = $throttle;
-    $this->assign_csv_filename();
+
+    // Assign CSV filename same as XLSX filename
+    $this->csv_fullpath  = str_replace('.xlsx', '.csv', $this->file);
+    $this->csv_fullpath = str_replace(' ', '-', $this->csv_fullpath);
+    $this->csv_fullpath = $this->csv_fullpath;
+    if(!is_dir('bin')) {mkdir("bin", 0770);}; 
   }
 
 
@@ -178,15 +183,6 @@
     // if($this->cleanup != '1') $this->cleanUp('bin/');
 
     return TRUE;
-  }
-
-  private function assign_csv_filename(){
-    // Assign CSV filename same as XLSX filename
-    $this->csv_fullpath  = str_replace('.xlsx', '.csv', $this->file);
-    $this->csv_fullpath = str_replace(' ', '-', $this->csv_fullpath);
-    $this->csv_fullpath = $this->csv_fullpath;
-    if(!is_dir('bin')) {mkdir("bin", 0770);}; 
-    if(!is_dir('csv')) {mkdir("csv", 0777);};
   }
 
   /**
