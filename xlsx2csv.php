@@ -70,8 +70,8 @@
      * suggests SimpleXML is more than 2X faster in record sets ~<500K
      */
     $strings = array();
-    $dir = getcwd() . '\\';
-    $filename = $dir.str_replace('/', '', $this->bin_path)."\converter\xl\sharedstrings.xml";   
+    $dir = getcwd() . '/';
+    $filename = $dir.str_replace('/', '', $this->bin_path)."/converter/xl/sharedstrings.xml";   
     $z = new XMLReader;
     $z->open($filename);
 
@@ -102,8 +102,8 @@
     $z->close($filename);
 
 
-    $dir = getcwd() . '\\';
-    $filename = $dir.str_replace('/', '', $this->bin_path)."\converter\xl\worksheets\sheet1.xml";    
+    $dir = getcwd() . '/';
+    $filename = $dir.str_replace('/', '', $this->bin_path)."/converter/xl/worksheets/sheet1.xml";    
     $z = new XMLReader;
     $z->open($filename);
 
